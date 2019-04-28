@@ -1,0 +1,105 @@
+<Project InitialTargets="CleanBuildDirectory" DefaultTargets="CSCCompile" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="ProjectOwner">
+
+<PropertyGroup>
+<BuildDirectory Condition="'$(BuildDirectory)' == ''">Build</BuildDirectory>
+<BackupDirectory Condition="'$(BackupDirectory)' == ''">Backup</BackupDirectory>
+<PacketDirectory Condition="'$(PacketDirectory)' == ''">Packet</PacketDirectory>
+</PropertyGroup>
+<PropertyGroup>
+<BuildType Condition="'$(BuildType)' == ''" >Debug</BuildType>
+<ProjectOwner >Shivinder</ProjectOwner>
+</PropertyGroup>
+
+<PropertyGroup Condition="'$(BuildType)' == 'Debug'">
+<DebugType>full</DebugType>
+<Optimize>no</Optimize>
+</PropertyGroup>
+
+<PropertyGroup Condition="'$(BuildType)' == 'Release'">
+<DebugType>pdbonly</DebugType>
+<Optimize>yes</Optimize>
+</PropertyGroup>
+
+
+<ItemGroup>
+<CSFile Include="AppNew.cs"></CSFile>
+<CSFile Include="AppNewDB.cs"></CSFile>
+<CSFile Include="Tools/**/*.cs"></CSFile>
+
+<Reference Include="System.dll" />
+<Reference Include="System.Xml.dll" />
+</ItemGroup>
+
+<ItemGroup>
+<AllFiles Include="$(MSBuildProjectDirectory)/$(BuildDirectory)/**/*.*" />
+</ItemGroup>
+
+<Target Name="CleanBuildDirectory">
+<Message Text="Deleting all build files" />
+<Delete Files="@(AllFiles)" />
+</Target>
+<Target Name="PreBuild">
+<Exec Command="if not exist $(BuildDirectory) md $(BuildDirectory)" />
+</Target>
+<Target Name="CSCCompile" DependsOnTargets="PreBuild">
+<CSC Sources="@(CSFile)" References="@(Reference)" DebugType="$(DebugType)" Optimize="$(Optimize)" OutputAssembly="$(BuildDirectory)/$(MSBuildProjectName).exe">
+<Output TaskParameter="OutputAssembly" ItemName="MyAssemblyName" />
+</CSC>
+<Message Text="Congratulations you create new exe @(MyAssemblyName)" />
+<Message Text="The MSBUILD Tools Path is $(MSBuildToolsPath)" />
+<Message Text="The Project owner is $(ProjectOwner)" />
+<Message Text="The Build completed at $([System.DateTime]::Now)" />
+<Message Text="We are currently in following drive $(MSBuildProjectDirectory.Substring(0,3))" />
+</Target>
+
+<Target Name="Backup" BeforeTargets="CleanBuildDirectory">
+<Message Text="Back up started.." />
+<Exec Command="if not exist $(BackupDirectory) md $(BackupDirectory)" />
+<Copy SourceFiles="@(AllFiles)" DestinationFiles="@(AllFiles-> '$(MSBuildProjectDirectory)/$(BackupDirectory)/%(RecuriveDir)/%(Filename)%(Extension)')" />
+<Message Text="Back up completed successfully.." />
+</Target>
+<Target Name="CreatePacketDirectory">
+<Exec Command="if not exist $(PacketDirectory) md $(PacketDirectory)" /> 
+</Target>
+
+<UsingTask TaskName="CustomZip" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+<ParameterGroup>
+<PacketName ParameterType="System.String" Required="true" />
+<InputFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+</ParameterGroup>
+<Task>
+<Reference Include="System.IO.Compression" />
+<Using Namespace="System.IO.Compression" />
+<Code Type="Fragment" Language="cs">
+<![CDATA[
+      try
+      {
+        using (Stream zipStream = new FileStream(Path.GetFullPath(PacketName), FileMode.Create, FileAccess.Write))
+        using (ZipArchive archive = new ZipArchive(zipStream, ZipArchiveMode.Create))
+        {
+            foreach (ITaskItem fileItem in InputFiles)
+            {
+                string filename = fileItem.ItemSpec;
+                using (Stream fileStream = new FileStream(filename, FileMode.Open, FileAccess.Read))
+                using (Stream fileStreamInZip = archive.CreateEntry(new FileInfo(filename).Name).Open())
+                    fileStream.CopyTo(fileStreamInZip);
+            }
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        Log.LogErrorFromException(ex);
+        return false;
+      }
+]]>
+</Code>
+</Task>
+</UsingTask>
+<Target Name="GenerateDeploymentPacket" AfterTargets="CSCCompile" DependsOnTargets="CreatePacketDirectory">
+
+<CustomZip PacketName="$(PacketDirectory)/Packet_$([System.Datetime]::Now.Year)_$([System.Datetime]::Now.Month)_$([System.Datetime]::Now.Day)_$([System.Datetime]::Now.Hour).zip"  InputFiles="@(AllFiles)" />
+
+</Target>
+
+</Project>
