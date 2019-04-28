@@ -2,7 +2,7 @@
 
 pipeline {
   environment {
-    MSBUILD = "msbuild"
+    MSBUILD = "C:\Program Files (x86)\MSBuild\14.0\Bin\msbuild.exe"
     BuildType = 'Release'
   }
   stages {
